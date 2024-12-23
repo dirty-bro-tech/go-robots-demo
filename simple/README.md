@@ -9,7 +9,7 @@
 * 说明：
   * 简单For循环转动固定几个角度
 * 命令
-  * > $ tinygo flash -target=arduino -port=/dev/cu.usbserial-21420 
+  * > $ tinygo flash -target=arduino -port=/dev/cu.usbserial-2130
   * -port 改成自己的设置
 
 ## [simple_serial.go](./serial/simple_serial.go)
