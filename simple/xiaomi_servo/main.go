@@ -1,29 +1,36 @@
 package main
 
-import "github.com/brutella/can"
+import (
+	"context"
+	"log"
+	"time"
+
+	"go.einride.tech/can"
+	"go.einride.tech/can/pkg/socketcan"
+)
 
 func main() {
-	bus, err := can.NewBusForInterfaceWithName("can1")
+	// 打开CAN网络接口
+	conn, err := socketcan.DialContext(context.Background(), "can", "can0")
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed to dial CAN network interface: %v", err)
+	}
+	defer conn.Close()
+
+	// 创建一个CAN帧，ID为127
+	frame := can.Frame{
+		ID:     127,
+		Length: 8,
+		Data:   [8]byte{1, 2, 3, 4, 5, 6, 7, 8}, // 示例数据
 	}
 
-	err = bus.ConnectAndPublish()
+	// 发送CAN帧
+	tx := socketcan.NewTransmitter(conn)
+	err = tx.TransmitFrame(context.Background(), frame)
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed to dial CAN network interface: %v", err)
 	}
 
-	frm := can.Frame{
-		ID:     8,
-		Length: 1,
-		Flags:  0,
-		Res0:   0,
-		Res1:   0,
-		Data:   [8]uint8{0x05},
-	}
-
-	err = bus.Publish(frm)
-	if err != nil {
-		panic(err)
-	}
+	// 等待一段时间，以便可以查看发送效果
+	time.Sleep(1 * time.Second)
 }
