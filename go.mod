@@ -3,8 +3,15 @@ module github.com/chip-ai-labs/go-robots-demo
 go 1.18
 
 require (
-	github.com/brutella/can v0.0.2
+	go.einride.tech/can v0.12.1
 	tinygo.org/x/drivers v0.28.0
 )
 
-require golang.org/x/sys v0.0.0-20181213200352-4d1cda033e06 // indirect
+require (
+	github.com/golang/mock v1.6.0 // indirect
+	golang.org/x/mod v0.17.0 // indirect
+	golang.org/x/net v0.25.0 // indirect
+	golang.org/x/sync v0.7.0 // indirect
+	golang.org/x/sys v0.20.0 // indirect
+	golang.org/x/tools v0.21.0 // indirect
+)

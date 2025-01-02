@@ -11,7 +11,7 @@ import (
 
 func main() {
 	// 打开CAN网络接口
-	conn, err := socketcan.DialContext(context.Background(), "can", "can0")
+	conn, err := socketcan.DialContext(context.Background(), "udp", "127.0.0.1:8080")
 	if err != nil {
 		log.Fatalf("failed to dial CAN network interface: %v", err)
 	}
