@@ -43,16 +43,16 @@ var (
 	}
 
 	featureParams = map[string]FeatureParam{
-		"run_mode":      {Index: 0x7005, Format: "u8"},
-		"iq_ref":        {Index: 0x7006, Format: "f"},
-		"spd_ref":       {Index: 0x700A, Format: "f"},
-		"limit_torque":  {Index: 0x700B, Format: "f"},
-		"cur_kp":        {Index: 0x7010, Format: "f"},
-		"cur_ki":        {Index: 0x7011, Format: "f"},
-		"cur_filt_gain": {Index: 0x7014, Format: "f"},
-		"loc_ref":       {Index: 0x7016, Format: "f"},
-		"limit_spd":     {Index: 0x7017, Format: "f"},
-		"limit_cur":     {Index: 0x7018, Format: "f"},
+		"run_mode":      {Name: "run_mode", Index: 0x7005, Format: "u8"},
+		"iq_ref":        {Name: "iq_ref", Index: 0x7006, Format: "f"},
+		"spd_ref":       {Name: "spd_ref", Index: 0x700A, Format: "f"},
+		"limit_torque":  {Name: "limit_torque", Index: 0x700B, Format: "f"},
+		"cur_kp":        {Name: "cur_kp", Index: 0x7010, Format: "f"},
+		"cur_ki":        {Name: "cur_ki", Index: 0x7011, Format: "f"},
+		"cur_filt_gain": {Name: "cur_filt_gain", Index: 0x7014, Format: "f"},
+		"loc_ref":       {Name: "loc_ref", Index: 0x7016, Format: "f"},
+		"limit_spd":     {Name: "limit_spd", Index: 0x7017, Format: "f"},
+		"limit_cur":     {Name: "limit_cur", Index: 0x7018, Format: "f"},
 	}
 
 	tpyMap = map[string]int{

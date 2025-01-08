@@ -16,11 +16,11 @@ const (
 	CMDModelFaultFeedback     CMDModel = 21
 )
 
-type RunMode int
-
 const (
 	RunModeControlMode  RunMode = 0 // 运控模式
 	RunModePositionMode RunMode = 1 // 位置模式
 	RunModeSpeedMode    RunMode = 2 // 速度模式
 	RunModeCurrentMode  RunMode = 3 // 电流模式
 )
+
+type RunMode int
