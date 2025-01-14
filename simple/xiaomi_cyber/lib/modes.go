@@ -1,19 +1,30 @@
 package lib
 
-type CMDModel int
+type Mode int
+type CMDMode Mode
+
+func (m CMDMode) Mode() Mode {
+	return Mode(m)
+}
+
+type RunMode Mode
+
+func (r RunMode) Mode() Mode {
+	return Mode(r)
+}
 
 const (
-	CMDModelGetDeviceId       CMDModel = 0
-	CMDModelMotorControl      CMDModel = 1
-	CMDModelMotorFeedback     CMDModel = 2
-	CMDModelMotorEnable       CMDModel = 3
-	CMDModelMotorStop         CMDModel = 4
-	CMDModelSetMechanicalZero CMDModel = 6
-	CMDModelSetMotorCanId     CMDModel = 7
-	CMDModelParamTableWrite   CMDModel = 8
-	CMDModelSingleParamRead   CMDModel = 17
-	CMDModelSingleParamWrite  CMDModel = 18
-	CMDModelFaultFeedback     CMDModel = 21
+	CMDModelGetDeviceId       CMDMode = 0
+	CMDModelMotorControl      CMDMode = 1
+	CMDModelMotorFeedback     CMDMode = 2
+	CMDModelMotorEnable       CMDMode = 3
+	CMDModelMotorStop         CMDMode = 4
+	CMDModelSetMechanicalZero CMDMode = 6
+	CMDModelSetMotorCanId     CMDMode = 7
+	CMDModelParamTableWrite   CMDMode = 8
+	CMDModelSingleParamRead   CMDMode = 17
+	CMDModelSingleParamWrite  CMDMode = 18
+	CMDModelFaultFeedback     CMDMode = 21
 )
 
 const (
@@ -22,5 +33,3 @@ const (
 	RunModeSpeedMode    RunMode = 2 // 速度模式
 	RunModeCurrentMode  RunMode = 3 // 电流模式
 )
-
-type RunMode int

@@ -61,5 +61,5 @@ var (
 		"int32": 0x04,
 	}
 
-	twoBytesBits = 16
+	twoBytesBits uint = 16
 )

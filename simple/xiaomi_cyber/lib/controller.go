@@ -3,31 +3,31 @@ package lib
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
+	"errors"
 	"fmt"
 	"log"
 	"math"
 	"net"
-	"strings"
 
+	"encoding/binary"
 	"go.einride.tech/can"
 	"go.einride.tech/can/pkg/socketcan"
 )
 
 type CyberGearController struct {
-	Bus      interface{} // todo
-	MotorId  int
-	MainCNId int
-	PMin     float64
-	PMax     float64
-	VMin     float64
-	VMax     float64
-	TMin     float64
-	TMax     float64
-	KpMin    float64 // 0.0 ~
-	KpMax    float64 // ~ 500.0
-	KdMin    float64 // 0.0 ~
-	KdMax    float64 //    ~ 5.0
+	Bus       interface{} // todo
+	MotorId   int
+	MainCanId int
+	PMin      float64
+	PMax      float64
+	VMin      float64
+	VMax      float64
+	TMin      float64
+	TMax      float64
+	KpMin     float64 // 0.0 ~
+	KpMax     float64 // ~ 500.0
+	KdMin     float64 // 0.0 ~
+	KdMax     float64 //    ~ 5.0
 
 	canConn net.Conn
 }
@@ -51,10 +51,18 @@ func (c *CyberGearController) Init(ctx context.Context, network, address string)
 
 // SetMode 设置控制模式。
 func (c *CyberGearController) SetMode(mode RunMode) {
-	switch expr {
-
+	switch mode {
+	case RunModeControlMode:
+		c.SetRunMode()
+	case RunModePositionMode:
+		log.Printf("WARNING: SetMode: unknown run mode: %v", mode)
+	case RunModeSpeedMode:
+		log.Printf("WARNING: SetMode: unknown run mode: %v", mode)
+	case RunModeCurrentMode:
+	default:
+		log.Printf("WARNING: SetMode: unknown run mode: %v", mode)
+		return
 	}
-
 }
 
 // SetRunMode 设置运控模式。
@@ -62,7 +70,7 @@ func (c *CyberGearController) SetRunMode() {
 	c.SetMode(RunModeControlMode)
 }
 
-func (c *CyberGearController) WriteSingleParameter(paramName string, value int) {
+func (c *CyberGearController) WriteSingleParameter(index int, paramName string, value int) {
 	if f, ok := featureParams[paramName]; ok {
 		/*
 		 写入单个参数。
@@ -74,11 +82,39 @@ func (c *CyberGearController) WriteSingleParameter(paramName string, value int) 
 		  解析后的接收消息。
 		*/
 
-		encodeData, _ := c.formatData(f.value, f.Format, "encode")
+		encodedData, _ := c.formatData([]byte{byte(value)}, f.Format, "encode")
+		// Create a bytes buffer and write the index as little-endian bytes
+		buf := new(bytes.Buffer)
+		err := binary.Write(buf, binary.LittleEndian, index)
+		if err != nil {
+			panic(err)
+		}
 
+		// Convert buffer bytes to a slice
+		indexBytes := buf.Bytes()
+
+		// Concatenate indexBytes and encodedData
+		data1 := append(indexBytes, encodedData...)
+		c.clearCanRxBuffer()
+
+		err = c.sendMessage(CMDModelSingleParamWrite.Mode(), c.MainCanId, data1)
+		if err != nil {
+			log.Println(err)
+		}
 	}
 }
 
+// SendCMDInControlMode 运控模式下发送电机控制指令。
+//
+//	参数:
+//	torque: 扭矩。
+//	target_angle: 目标角度。
+//	target_velocity: 目标速度。
+//	Kp: 比例增益。
+//	Kd: 导数增益。
+//
+//	返回:
+//	解析后的接收消息。
 func (c *CyberGearController) SendCMDInControlMode(torque, targetAngle, targetVelocity, Kp, Kd uint32) {
 	// 生成29位的仲裁ID的组成部分
 	// 也不知道干嘛的，先抄着
@@ -117,7 +153,7 @@ func (c *CyberGearController) SendCMDInControlMode(torque, targetAngle, targetVe
 	data1 := buf.Bytes()
 
 	// 发送CAN消息
-	err = c.sendMessage(RunModeControlMode, data1, int(data2))
+	err = c.sendMessage(RunModeControlMode.Mode(), int(data2), data1)
 	if err != nil {
 		panic(err)
 	}
@@ -133,8 +169,8 @@ func (c *CyberGearController) SendCMDInControlMode(torque, targetAngle, targetVe
 //
 // 返回:
 // 一个元组, 包含接收到的消息数据和接收到的消息仲裁ID(如果有)。
-func (c *CyberGearController) sendMessage(runModel RunMode, data1 []byte, data2 int) (err error) {
-	arbitrationId := (int(runModel) << 24) | (data2 << 8) | c.MotorId
+func (c *CyberGearController) sendMessage(mode Mode, data2 int, data1 []byte) (err error) {
+	arbitrationId := (int(mode) << 24) | (data2 << 8) | c.MotorId
 	frame := can.Frame{
 		ID:         uint32(arbitrationId),
 		Data:       can.Data{data1[0], data1[1], data1[2], data1[3], data1[4], data1[5], data1[6], data1[7]},
@@ -198,81 +234,123 @@ func (c *CyberGearController) linearMapping(value, valueMin, valueMax, targetMin
 	return (value-valueMin)/(valueMax-valueMin)*(targetMax-targetMin) + targetMin
 }
 
-// formatData handles encoding or decoding of data based on the provided format.
-func (c *CyberGearController) formatData(data []byte, format string, opType string) ([]interface{}, error) {
-	formatList := strings.Fields(format)
-	var result []interface{}
+// 解析接收到的CAN消息。
+//
+// 参数:
+// data: 接收到的数据。
+// arbitration_id: 接收到的消息的仲裁ID。
+//
+// 返回:
+// 一个元组, 包含电机的CAN ID、位置(rad)、速度(rad/s)、力矩(Nm)、温度(摄氏度)。
+func (c *CyberGearController) parseReceivedMsg(data []byte, arbitrationID uint32) (uint8, float64, float64, float64, float64) {
+	if data != nil {
+		log.Printf("Received message with ID %x", arbitrationID)
 
-	if opType == "decode" {
-		reader := bytes.NewReader(data)
+		// Parse Motor CAN ID
+		motorCanID := uint8((arbitrationID >> 8) & 0xFF)
+
+		pos := uintToFloat(binary.BigEndian.Uint16(data[0:2]), c.PMin, c.PMax, twoBytesBits)
+		vel := uintToFloat(binary.BigEndian.Uint16(data[2:4]), c.VMin, c.VMax, twoBytesBits)
+		torque := uintToFloat(binary.BigEndian.Uint16(data[4:6]), c.TMin, c.TMax, twoBytesBits)
+
+		// Parse temperature data
+		temperatureRaw := binary.BigEndian.Uint16(data[6:8])
+		temperatureCelsius := float64(temperatureRaw) / 10.0
+
+		log.Printf("Motor CAN ID: %d, pos: %.2f rad, vel: %.2f rad/s, torque: %.2f Nm, temperature: %.1f °C",
+			motorCanID, pos, vel, torque, temperatureCelsius)
+
+		return motorCanID, pos, vel, torque, temperatureCelsius
+	} else {
+		log.Println("No message received within the timeout period.")
+		return 0, 0, 0, 0, 0
+	}
+}
+
+func uintToFloat(value uint16, min, max float64, bits uint) float64 {
+	return min + (float64(value)/math.Pow(2, float64(bits)))*(max-min)
+}
+
+func (c *CyberGearController) clearCanRxBuffer() {
+}
+
+// formatData encodes or decodes data to/from a byte slice depending on the specified format and operation type.
+func (c *CyberGearController) formatData(data []byte, format string, dataType string) ([]byte, error) {
+	formatList := splitWhitespace(format)
+	buf := bytes.NewBuffer(nil)
+
+	if dataType == "decode" {
+		inputBuffer := bytes.NewBuffer(data)
 		for _, f := range formatList {
 			switch f {
-			case "f":
+			case "f": // float32, 4 bytes
 				var value float32
-				if err := binary.Read(reader, binary.LittleEndian, &value); err != nil {
+				if err := binary.Read(inputBuffer, binary.LittleEndian, &value); err != nil {
 					return nil, err
 				}
-				result = append(result, value)
-			case "u16":
+				binary.Write(buf, binary.LittleEndian, value)
+			case "u16": // uint16, 2 bytes
 				var value uint16
-				if err := binary.Read(reader, binary.LittleEndian, &value); err != nil {
+				if err := binary.Read(inputBuffer, binary.LittleEndian, &value); err != nil {
 					return nil, err
 				}
-				result = append(result, value)
-			case "s16":
+				binary.Write(buf, binary.LittleEndian, value)
+			case "s16": // int16, 2 bytes
 				var value int16
-				if err := binary.Read(reader, binary.LittleEndian, &value); err != nil {
+				if err := binary.Read(inputBuffer, binary.LittleEndian, &value); err != nil {
 					return nil, err
 				}
-				result = append(result, value)
-			case "u32":
+				binary.Write(buf, binary.LittleEndian, value)
+			case "u32": // uint32, 4 bytes
 				var value uint32
-				if err := binary.Read(reader, binary.LittleEndian, &value); err != nil {
+				if err := binary.Read(inputBuffer, binary.LittleEndian, &value); err != nil {
 					return nil, err
 				}
-				result = append(result, value)
-			case "s32":
+				binary.Write(buf, binary.LittleEndian, value)
+			case "s32": // int32, 4 bytes
 				var value int32
-				if err := binary.Read(reader, binary.LittleEndian, &value); err != nil {
+				if err := binary.Read(inputBuffer, binary.LittleEndian, &value); err != nil {
 					return nil, err
 				}
-				result = append(result, value)
-			case "u8":
+				binary.Write(buf, binary.LittleEndian, value)
+			case "u8": // uint8, 1 byte
 				var value uint8
-				if err := binary.Read(reader, binary.LittleEndian, &value); err != nil {
+				if err := binary.Read(inputBuffer, binary.LittleEndian, &value); err != nil {
 					return nil, err
 				}
-				result = append(result, value)
-			case "s8":
+				binary.Write(buf, binary.LittleEndian, value)
+			case "s8": // int8, 1 byte
 				var value int8
-				if err := binary.Read(reader, binary.LittleEndian, &value); err != nil {
+				if err := binary.Read(inputBuffer, binary.LittleEndian, &value); err != nil {
 					return nil, err
 				}
-				result = append(result, value)
+				binary.Write(buf, binary.LittleEndian, value)
 			default:
-				log.Printf("unknown format in FormatData(): %s", f)
-				return nil, fmt.Errorf("unknown format: %s", f)
-			}
-		}
-		return result, nil
-	} else if opType == "encode" {
-		var buf bytes.Buffer
-		for i, f := range formatList {
-			switch f {
-			case "f":
-				if err := binary.Write(&buf, binary.LittleEndian, float32(data[i])); err != nil {
-					return nil, err
-				}
-			case "u16", "s16", "u32", "s32", "u8", "s8":
-				if err := binary.Write(&buf, binary.LittleEndian, data[i]); err != nil {
-					return nil, err
-				}
-			default:
-				log.Printf("unknown format in FormatData(): %s", f)
-				return nil, fmt.Errorf("unknown format: %s", f)
+				return nil, errors.New("unknown format: " + f)
 			}
 		}
 		return buf.Bytes(), nil
+	} else if dataType == "encode" {
+		// Assuming `data` is a properly formatted byte slice for encoding based on `format`
+		buf.Write(data)
+		return buf.Bytes(), nil
 	}
-	return nil, fmt.Errorf("invalid operation type: %s", opType)
+
+	return nil, errors.New("invalid type specified, must be 'encode' or 'decode'")
+}
+
+// splitWhitespace splits a string by whitespace and returns a slice of strings.
+func splitWhitespace(s string) []string {
+	fields := bytes.Fields([]byte(s))
+	result := make([]string, len(fields))
+	for i, field := range fields {
+		result[i] = string(field)
+	}
+	return result
+}
+
+func uint32ToBytes(num uint32) []byte {
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.LittleEndian, num)
+	return buf.Bytes()
 }
