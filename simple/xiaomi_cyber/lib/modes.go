@@ -14,17 +14,17 @@ func (r RunMode) Mode() Mode {
 }
 
 const (
-	CMDModelGetDeviceId       CMDMode = 0
-	CMDModelMotorControl      CMDMode = 1
-	CMDModelMotorFeedback     CMDMode = 2
-	CMDModelMotorEnable       CMDMode = 3
-	CMDModelMotorStop         CMDMode = 4
-	CMDModelSetMechanicalZero CMDMode = 6
-	CMDModelSetMotorCanId     CMDMode = 7
-	CMDModelParamTableWrite   CMDMode = 8
-	CMDModelSingleParamRead   CMDMode = 17
-	CMDModelSingleParamWrite  CMDMode = 18
-	CMDModelFaultFeedback     CMDMode = 21
+	CMDModeGetDeviceId       CMDMode = 0
+	CMDModeMotorControl      CMDMode = 1
+	CMDModeMotorFeedback     CMDMode = 2
+	CMDModeMotorEnable       CMDMode = 3
+	CMDModeMotorStop         CMDMode = 4
+	CMDModeSetMechanicalZero CMDMode = 6
+	CMDModeSetMotorCanId     CMDMode = 7
+	CMDModeParamTableWrite   CMDMode = 8
+	CMDModeSingleParamRead   CMDMode = 17
+	CMDModeSingleParamWrite  CMDMode = 18
+	CMDModeFaultFeedback     CMDMode = 21
 )
 
 const (

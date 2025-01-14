@@ -70,6 +70,28 @@ func (c *CyberGearController) SetRunMode() {
 	c.SetMode(RunModeControlMode)
 }
 
+// Disable stops motor
+func (c *CyberGearController) Disable() {
+	c.clearCanRxBuffer()
+
+	err := c.sendMessage(CMDModeMotorStop.Mode(), c.MainCanId, []byte{0, 0, 0, 0, 0, 0, 0, 0})
+	if err != nil {
+		log.Println(err)
+	}
+}
+
+// Enable enables motor
+//
+//	使能运行电机。
+func (c *CyberGearController) Enable() {
+	c.clearCanRxBuffer()
+
+	err := c.sendMessage(CMDModeMotorEnable.Mode(), c.MainCanId, []byte{})
+	if err != nil {
+		log.Println(err)
+	}
+}
+
 func (c *CyberGearController) WriteSingleParameter(index int, paramName string, value int) {
 	if f, ok := featureParams[paramName]; ok {
 		/*
@@ -97,7 +119,7 @@ func (c *CyberGearController) WriteSingleParameter(index int, paramName string, 
 		data1 := append(indexBytes, encodedData...)
 		c.clearCanRxBuffer()
 
-		err = c.sendMessage(CMDModelSingleParamWrite.Mode(), c.MainCanId, data1)
+		err = c.sendMessage(CMDModeSingleParamWrite.Mode(), c.MainCanId, data1)
 		if err != nil {
 			log.Println(err)
 		}
@@ -159,41 +181,6 @@ func (c *CyberGearController) SendCMDInControlMode(torque, targetAngle, targetVe
 	}
 }
 
-// sendMessage 发送CAN消息并接收响应。
-//
-// 参数:
-// cmd_mode: 命令模式。
-// data2: 数据区2。
-// data1: 要发送的数据字节。
-// timeout: 发送消息的超时时间(默认为200ms)。
-//
-// 返回:
-// 一个元组, 包含接收到的消息数据和接收到的消息仲裁ID(如果有)。
-func (c *CyberGearController) sendMessage(mode Mode, data2 int, data1 []byte) (err error) {
-	arbitrationId := (int(mode) << 24) | (data2 << 8) | c.MotorId
-	frame := can.Frame{
-		ID:         uint32(arbitrationId),
-		Data:       can.Data{data1[0], data1[1], data1[2], data1[3], data1[4], data1[5], data1[6], data1[7]},
-		Length:     uint8(len(data1)),
-		IsRemote:   false,
-		IsExtended: true,
-	}
-
-	tx := socketcan.NewTransmitter(c.canConn)
-	err = tx.TransmitFrame(context.Background(), frame)
-	if err != nil {
-		return fmt.Errorf("transmitter transmit frame failed: %v", err)
-	}
-	defer func(tx *socketcan.Transmitter) {
-		errIn := tx.Close()
-		if errIn != nil {
-			fmt.Println("transmitter close failed:", err)
-		}
-	}(tx)
-
-	return nil
-}
-
 // ReceiveMessage 接收CAN消息。
 //
 // 参数:
@@ -232,6 +219,41 @@ func (c *CyberGearController) ReceiveMessage(ctx context.Context) {
 // 映射后的值。
 func (c *CyberGearController) linearMapping(value, valueMin, valueMax, targetMin, targetMax uint32) uint32 {
 	return (value-valueMin)/(valueMax-valueMin)*(targetMax-targetMin) + targetMin
+}
+
+// sendMessage 发送CAN消息并接收响应。
+//
+// 参数:
+// cmd_mode: 命令模式。
+// data2: 数据区2。
+// data1: 要发送的数据字节。
+// timeout: 发送消息的超时时间(默认为200ms)。
+//
+// 返回:
+// 一个元组, 包含接收到的消息数据和接收到的消息仲裁ID(如果有)。
+func (c *CyberGearController) sendMessage(mode Mode, data2 int, data1 []byte) (err error) {
+	arbitrationId := (int(mode) << 24) | (data2 << 8) | c.MotorId
+	frame := can.Frame{
+		ID:         uint32(arbitrationId),
+		Data:       can.Data{data1[0], data1[1], data1[2], data1[3], data1[4], data1[5], data1[6], data1[7]},
+		Length:     uint8(len(data1)),
+		IsRemote:   false,
+		IsExtended: true,
+	}
+
+	tx := socketcan.NewTransmitter(c.canConn)
+	err = tx.TransmitFrame(context.Background(), frame)
+	if err != nil {
+		return fmt.Errorf("transmitter transmit frame failed: %v", err)
+	}
+	defer func(tx *socketcan.Transmitter) {
+		errIn := tx.Close()
+		if errIn != nil {
+			fmt.Println("transmitter close failed:", err)
+		}
+	}(tx)
+
+	return nil
 }
 
 // 解析接收到的CAN消息。
