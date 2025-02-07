@@ -1,6 +1,11 @@
 package lib
 
 type Mode int
+
+func (m Mode) Value() int {
+	return int(m)
+}
+
 type CMDMode Mode
 
 func (m CMDMode) Mode() Mode {

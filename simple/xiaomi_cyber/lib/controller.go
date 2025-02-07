@@ -53,7 +53,7 @@ func (c *CyberGearController) Init(ctx context.Context, network, address string)
 func (c *CyberGearController) SetMode(mode RunMode) {
 	switch mode {
 	case RunModeControlMode:
-		c.SetRunMode()
+		c.WriteSingleParameter(featureParams["run_mode"].Index, "run_mode", mode.Mode().Value())
 	case RunModePositionMode:
 		log.Printf("WARNING: SetMode: unknown run mode: %v", mode)
 	case RunModeSpeedMode:
@@ -140,15 +140,15 @@ func (c *CyberGearController) WriteSingleParameter(index int, paramName string, 
 func (c *CyberGearController) SendCMDInControlMode(torque, targetAngle, targetVelocity, Kp, Kd uint32) {
 	// 生成29位的仲裁ID的组成部分
 	// 也不知道干嘛的，先抄着
-	var targetMin uint32 = 0.0
-	var targetMax uint32 = 65535.0
-	torqueMapped := c.linearMapping(torque, -12.0, 12.0, targetMin, targetMax)
+	var targetMin float32 = 0.0
+	var targetMax float32 = 65535.0
+	torqueMapped := c.linearMapping(float32(torque), -12, 12, targetMin, targetMax)
 	data2 := torqueMapped
 
-	targetAngleMapped := c.linearMapping(targetAngle, -4*math.Pi, 4*math.Pi, targetMin, targetMax)
-	targetVelocityMapped := c.linearMapping(targetVelocity, -30.0, 30.0, targetMin, targetMax)
-	KpMapped := c.linearMapping(Kp, 0.0, 500.0, targetMin, targetMax)
-	KdMapped := c.linearMapping(Kd, 0.0, 5.0, targetMin, targetMax)
+	targetAngleMapped := c.linearMapping(float32(targetAngle), -4*math.Pi, 4*math.Pi, targetMin, targetMax)
+	targetVelocityMapped := c.linearMapping(float32(targetVelocity), -30.0, 30.0, targetMin, targetMax)
+	KpMapped := c.linearMapping(float32(Kp), 0.0, 500.0, targetMin, targetMax)
+	KdMapped := c.linearMapping(float32(Kd), 0.0, 5.0, targetMin, targetMax)
 
 	// 创建8字节的数据区
 	// Create a bytes buffer and ensure byte order
@@ -217,8 +217,8 @@ func (c *CyberGearController) ReceiveMessage(ctx context.Context) {
 //
 // 返回:
 // 映射后的值。
-func (c *CyberGearController) linearMapping(value, valueMin, valueMax, targetMin, targetMax uint32) uint32 {
-	return (value-valueMin)/(valueMax-valueMin)*(targetMax-targetMin) + targetMin
+func (c *CyberGearController) linearMapping(value, valueMin, valueMax, targetMin, targetMax float32) uint32 {
+	return uint32((value-valueMin)/(valueMax-valueMin)*(targetMax-targetMin) + targetMin)
 }
 
 // sendMessage 发送CAN消息并接收响应。
